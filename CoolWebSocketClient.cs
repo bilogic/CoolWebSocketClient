@@ -1,14 +1,16 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using System.Buffers;
 using System.Data.Common;
 using System.IO;
 using System.Net.WebSockets;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
-#nullable disable
-namespace CoolWebSocketClient
+
+namespace CoolApp
 {
     public enum CoolWebSocketMessageType
     {
@@ -50,7 +52,7 @@ namespace CoolWebSocketClient
 
     public sealed class CoolWebSocket : IDisposable
     {
-        private readonly ClientWebSocket WebSocket = new();
+        private readonly ClientWebSocket WebSocket = new ClientWebSocket();
 
         public WebSocketState State => WebSocket.State;
         public ClientWebSocketOptions Options => WebSocket.Options;
@@ -58,7 +60,7 @@ namespace CoolWebSocketClient
 
         public Uri Uri { get; private set; }
 
-        private readonly CancellationTokenSource CancellationTokenSource = new();
+        private readonly CancellationTokenSource CancellationTokenSource = new CancellationTokenSource();
         private CancellationToken CancellationToken => CancellationTokenSource.Token;
 
         public bool IsOpen => State == WebSocketState.Open || State == WebSocketState.Connecting;
@@ -91,10 +93,11 @@ namespace CoolWebSocketClient
             {
                 await WebSocket.ConnectAsync(uri, CancellationToken);
 
-                Thread = new(new ThreadStart(async () =>
+                Thread = new Thread(new ThreadStart(async () =>
                 {
                     while (IsOpen) await Poll();
-                })) { Name = "CoolWebSocketClientThread" };
+                }))
+                { Name = "CoolWebSocketClientThread" };
                 Thread.Start();
 
                 OnOpen?.Invoke();
@@ -114,7 +117,8 @@ namespace CoolWebSocketClient
         public async Task Close(
             CoolWebSocketCloseStatus closeStatus = CoolWebSocketCloseStatus.NormalClosure,
             string closeMessage = null
-        ) {
+        )
+        {
             if (!IsOpen) return;
 
             try
@@ -163,9 +167,14 @@ namespace CoolWebSocketClient
             }
         }
 
-        public async Task Send(ReadOnlyMemory<byte> data) => await InternalSend(data);
-        public async Task Send(ArraySegment<byte> data) => await InternalSend(data);
-        public async Task Send(byte[] data) => await InternalSend(new ReadOnlyMemory<byte>(data));
+        public async Task Send(ReadOnlyMemory<byte> data)            
+            => await InternalSend(data);
+
+        public async Task Send(ArraySegment<byte> data) 
+            => await InternalSend(data);
+        
+        public async Task Send(byte[] data)
+            => await InternalSend(new ReadOnlyMemory<byte>(data));
 
         public async Task Send(string text)
             => await InternalSend(Encoding.UTF8.GetBytes(text), WebSocketMessageType.Text);
@@ -175,7 +184,7 @@ namespace CoolWebSocketClient
         #region Receiving
 
         private const int PollBufferSize = 16384;
-        private readonly MemoryStream MemoryStream = new();
+        private readonly MemoryStream MemoryStream = new MemoryStream();
 
         private async Task Poll()
         {
@@ -211,7 +220,7 @@ namespace CoolWebSocketClient
             } while (result != null && !result.EndOfMessage);
         }
 
-        public string ReadString(ArraySegment<byte> message) => Encoding.UTF8.GetString(message);
+        public string ReadString(byte[] message) => Encoding.UTF8.GetString(message);
 
         #endregion
 
@@ -223,4 +232,9 @@ namespace CoolWebSocketClient
             MemoryStream?.Dispose();
         }
     }
+
+
+
+
 }
+
